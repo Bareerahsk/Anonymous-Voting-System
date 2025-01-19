@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anonymous Voting System</title>
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Anonymous Voting System</h1>
+            <button id="connectButton" onclick="connectMetaMask()">Connect Wallet</button>
+        </header>
+        <main>
+            <section id="walletSection" class="card">
+                <h2>Connected Wallet</h2>
+                <p>Your wallet address: <span id="walletAddress" class="address"></span></p>
+            </section>
+            <section id="candidateSection" class="card">
+                <h2>Manage Candidates</h2>
+                <div class="input-group">
+                    <input type="text" id="candidateName" placeholder="Enter candidate name" class="larger-text">
+                    <button onclick="addCandidate()">Add Candidate</button>
+                </div>
+                <h3>Candidate List</h3>
+                <ul id="candidateList"></ul>
+            </section>
+            <section id="voteSection" class="card">
+                <h2>Cast Vote</h2>
+                <div class="input-group">
+                    <input type="number" id="candidateIndex" placeholder="Candidate index" class="larger-text">
+                    <input type="number" id="numKeys" min="2" placeholder="Number of Keys" class="larger-text">
+                    <input type="number" id="signerIndex" min="0" placeholder="Signer Index" class="larger-text">
+                </div>
+                <button onclick="generateRingSignature()">Generate Ring Signature</button>
+                <div id="signatureDetails" style="display: none;">
+                    <h3>Signature Details</h3>
+                    <p>Candidate index: <span id="messageDisplay"></span></p>
+                    <p>Signature: <span id="signatureDisplay" class="address larger-text"></span></p>
+                    <p>Validity: <span id="validityDisplay"></span></p>
+                    <button onclick="castVote()">Cast Vote</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const contractABI = [
+	{
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "_name",
+				"type": "string"
+			}
+		],
+		"name": "addCandidate",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "string",
+				"name": "name",
+				"type": "string"
+			}
+		],
+		"name": "CandidateAdded",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_candidateIndex",
+				"type": "uint256"
+			},
+			{
+				"internalType": "bytes32",
+				"name": "_signature",
+				"type": "bytes32"
+			}
+		],
+		"name": "vote",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "candidateIndex",
+				"type": "uint256"
+			}
+		],
+		"name": "VoteCast",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "candidates",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "name",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "voteCount",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_index",
+				"type": "uint256"
+			}
+		],
+		"name": "getCandidate",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getCandidateCount",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "hasVoted",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "totalVotes",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bytes32",
+				"name": "",
+				"type": "bytes32"
+			}
+		],
+		"name": "usedSignatures",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	}
+]; // Your contract ABI here
+        const contractAddress = '0xbc4655e406747f9b571dda88efb1f9882d54891a'; // Your deployed contract address here
+        let web3;
+        let contract;
+        let currentSignature;
+
+        async function connectMetaMask() {
+            if (typeof window.ethereum !== 'undefined') {
+                try {
+                    await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    web3 = new Web3(window.ethereum);
+                    const accounts = await web3.eth.getAccounts();
+                    document.getElementById('walletAddress').textContent = accounts[0];
+                    document.getElementById('connectButton').textContent = 'Connected';
+                    document.getElementById('walletSection').style.display = 'block';
+                    contract = new web3.eth.Contract(contractABI, contractAddress);
+                    await updateCandidateList();
+                    await updateVotingStatus();
+                } catch (error) {
+                    console.error("User denied account access or error occurred:", error);
+                    alert("Failed to connect to MetaMask. Please check the console for details.");
+                }
+            } else {
+                alert('Please install MetaMask to use this application.');
+            }
+        }
+
+        async function addCandidate() {
+            const candidateName = document.getElementById('candidateName').value;
+            try {
+                const accounts = await web3.eth.getAccounts();
+                await contract.methods.addCandidate(candidateName).send({ from: accounts[0] });
+                alert("Candidate added successfully.");
+                await updateCandidateList();
+            } catch (error) {
+                console.error("Error adding candidate:", error);
+                alert("Failed to add candidate. See console for details.");
+            }
+        }
+
+        async function updateCandidateList() {
+            const candidateList = document.getElementById('candidateList');
+            candidateList.innerHTML = '';
+            const candidateCount = await contract.methods.getCandidateCount().call();
+            for (let i = 0; i < candidateCount; i++) {
+                const candidate = await contract.methods.getCandidate(i).call();
+                const li = document.createElement('li');
+                li.textContent = `${i}: ${candidate[0]} - ${candidate[1]} votes`;
+                candidateList.appendChild(li);
+            }
+        }
+
+        async function generateRingSignature() {
+            const candidateIndex = document.getElementById('candidateIndex').value;
+            const numKeys = document.getElementById('numKeys').value;
+            const signerIndex = document.getElementById('signerIndex').value;
+
+            const response = await fetch('/generate_signature', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    message: candidateIndex,
+                    num_keys: numKeys,
+                    signer_index: signerIndex
+                }),
+            });
+
+            const data = await response.json();
+            currentSignature = data.signature;
+
+            document.getElementById('messageDisplay').textContent = data.message;
+            document.getElementById('signatureDisplay').textContent = data.signature;
+            document.getElementById('validityDisplay').textContent = data.is_valid;
+            document.getElementById('signatureDetails').style.display = 'block';
+        }
+
+        async function castVote() {
+            if (!currentSignature) {
+                alert("Please generate a ring signature first.");
+                return;
+            }
+
+            const candidateIndex = parseInt(document.getElementById('candidateIndex').value);
+            if (isNaN(candidateIndex)) {
+                alert("Please enter a valid candidate index.");
+                return;
+            }
+
+            try {
+                const accounts = await web3.eth.getAccounts();
+                await contract.methods.vote(candidateIndex, web3.utils.keccak256(currentSignature)).send({ from: accounts[0] });
+                alert("Vote cast successfully.");
+                updateCandidateList();
+            } catch (error) {
+                console.error("Error casting vote:", error);
+                alert("Failed to cast vote. Please check the console for details.");
+            }
+        }
+
+        async function updateVotingStatus() {
+            try {
+                const accounts = await web3.eth.getAccounts();
+                const hasVoted = await contract.methods.hasVoted(accounts[0]).call();
+                
+                // Disable voting interface if user has already voted
+                const voteSection = document.getElementById('voteSection');
+                if (hasVoted) {
+                    voteSection.innerHTML = '<h2>Cast Vote</h2><p>You have already voted in this election.</p>';
+                }
+            } catch (error) {
+                console.error("Error checking voting status:", error);
+            }
+        }
+
+        // Initialize the page
+        window.addEventListener('load', async () => {
+            if (typeof window.ethereum !== 'undefined') {
+                web3 = new Web3(window.ethereum);
+                try {
+                    // Request account access if needed
+                    await window.ethereum.enable();
+                    web3.eth.defaultAccount = (await web3.eth.getAccounts())[0];
+                    contract = new web3.eth.Contract(contractABI, contractAddress);
+                    await updateCandidateList();
+                } catch (error) {
+                    console.error("User denied account access or error occurred:", error);
+                }
+            } else {
+                console.log('Please install MetaMask!');
+            }
+        });
+    </script>
+</body>
+</html>
