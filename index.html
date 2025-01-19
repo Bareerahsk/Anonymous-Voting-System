@@ -59,6 +59,39 @@
                     </div>
                 </div>
             </section>
+            <section id="metricsSection" class="card">
+                <h2>Transaction Metrics</h2>
+                <div class="metrics-container">
+                    <div class="metrics-box normal-metrics">
+                        <h3>Normal Vote Metrics</h3>
+                        <div id="normalVoteMetrics">
+                            <p>Last Transaction:</p>
+                            <ul>
+                                <li>Execution Time: <span id="normalExecTime">-</span></li>
+                                <li>Mining Time: <span id="normalMiningTime">-</span></li>
+                                <li>Block Added Time: <span id="normalBlockTime">-</span></li>
+                                <li>Gas Used: <span id="normalGasUsed">-</span></li>
+                                <li>Transaction Cost (ETH): <span id="normalTxCost">-</span></li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="metrics-box ring-metrics">
+                        <h3>Ring Signature Vote Metrics</h3>
+                        <div id="ringVoteMetrics">
+                            <p>Last Transaction:</p>
+                            <ul>
+                                <li>Signature Generation Time: <span id="ringSignatureTime">-</span></li>
+                                <li>Execution Time: <span id="ringExecTime">-</span></li>
+                                <li>Mining Time: <span id="ringMiningTime">-</span></li>
+                                <li>Block Added Time: <span id="ringBlockTime">-</span></li>
+                                <li>Gas Used: <span id="ringGasUsed">-</span></li>
+                                <li>Transaction Cost (ETH): <span id="ringTxCost">-</span></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </main>
     </div>
 
@@ -252,7 +285,7 @@
 		"type": "function"
 	}
 ]; // Your contract ABI here
-        const contractAddress = '0x79fc5c742a6f939749ad8330976a0ce140221993'; // Your deployed contract address here
+        const contractAddress = '0x79e345973af00d1e95228aea4fadf06e05023423'; // Your deployed contract address here
         let web3;
         let contract;
         let currentSignature;
@@ -318,6 +351,7 @@
         }
 
         async function generateRingSignature() {
+            const startTime = performance.now();
             const candidateIndex = document.getElementById('candidateIndex').value;
             const numKeys = document.getElementById('numKeys').value;
             const signerIndex = document.getElementById('signerIndex').value;
@@ -341,9 +375,13 @@
             document.getElementById('signatureDisplay').textContent = data.signature;
             document.getElementById('validityDisplay').textContent = data.is_valid;
             document.getElementById('signatureDetails').style.display = 'block';
+            
+            const signatureTime = performance.now() - startTime;
+            document.getElementById('ringSignatureTime').textContent = `${signatureTime.toFixed(2)} ms`;
         }
 
         async function castVote() {
+            const startTime = performance.now();
             if (!currentSignature) {
                 alert("Please generate a ring signature first.");
                 return;
@@ -357,9 +395,35 @@
 
             try {
                 const accounts = await web3.eth.getAccounts();
-                await contract.methods.vote(candidateIndex, web3.utils.keccak256(currentSignature)).send({ from: accounts[0] });
+                
+                // Record execution time before sending transaction
+                const execTime = performance.now() - startTime;
+                document.getElementById('ringExecTime').textContent = `${execTime.toFixed(2)} ms`;
+                
+                const txStartTime = performance.now();
+                const tx = await contract.methods.vote(candidateIndex, web3.utils.keccak256(currentSignature))
+                    .send({ from: accounts[0] });
+                
+                // Calculate and display metrics
+                const miningTime = performance.now() - txStartTime;
+                document.getElementById('ringMiningTime').textContent = `${miningTime.toFixed(2)} ms`;
+                
+                // Get transaction details
+                const receipt = await web3.eth.getTransactionReceipt(tx.transactionHash);
+                const block = await web3.eth.getBlock(receipt.blockNumber);
+                const blockTime = (block.timestamp * 1000) - startTime;
+                
+                document.getElementById('ringBlockTime').textContent = `${blockTime.toFixed(2)} ms`;
+                document.getElementById('ringGasUsed').textContent = receipt.gasUsed;
+                
+                // Calculate transaction cost in ETH
+                const gasPrice = await web3.eth.getGasPrice();
+                const txCost = web3.utils.fromWei((receipt.gasUsed * gasPrice).toString(), 'ether');
+                document.getElementById('ringTxCost').textContent = txCost;
+                
                 alert("Vote cast successfully.");
-                updateCandidateList();
+                await updateCandidateList();
+                await updateVotingStatus();
             } catch (error) {
                 console.error("Error casting vote:", error);
                 alert("Failed to cast vote. Please check the console for details.");
@@ -382,6 +446,7 @@
         }
 
         async function castNormalVote() {
+            const startTime = performance.now();
             const candidateIndex = parseInt(document.getElementById('normalCandidateIndex').value);
             if (isNaN(candidateIndex)) {
                 alert("Please enter a valid candidate index.");
@@ -390,9 +455,32 @@
 
             try {
                 const accounts = await web3.eth.getAccounts();
-                // Pass a dummy signature for normal voting
                 const dummySignature = web3.utils.keccak256(accounts[0] + Date.now().toString());
-                await contract.methods.vote(candidateIndex, dummySignature).send({ from: accounts[0] });
+                
+                // Record execution time before sending transaction
+                const execTime = performance.now() - startTime;
+                document.getElementById('normalExecTime').textContent = `${execTime.toFixed(2)} ms`;
+                
+                const txStartTime = performance.now();
+                const tx = await contract.methods.vote(candidateIndex, dummySignature).send({ from: accounts[0] });
+                
+                // Calculate and display metrics
+                const miningTime = performance.now() - txStartTime;
+                document.getElementById('normalMiningTime').textContent = `${miningTime.toFixed(2)} ms`;
+                
+                // Get transaction details
+                const receipt = await web3.eth.getTransactionReceipt(tx.transactionHash);
+                const block = await web3.eth.getBlock(receipt.blockNumber);
+                const blockTime = (block.timestamp * 1000) - startTime;
+                
+                document.getElementById('normalBlockTime').textContent = `${blockTime.toFixed(2)} ms`;
+                document.getElementById('normalGasUsed').textContent = receipt.gasUsed;
+                
+                // Calculate transaction cost in ETH
+                const gasPrice = await web3.eth.getGasPrice();
+                const txCost = web3.utils.fromWei((receipt.gasUsed * gasPrice).toString(), 'ether');
+                document.getElementById('normalTxCost').textContent = txCost;
+                
                 alert("Vote cast successfully.");
                 await updateCandidateList();
                 await updateVotingStatus();
