@@ -134,6 +134,33 @@ li {
     font-size: 1.1em;
 }
 
+.voting-options {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.normal-vote, .anonymous-vote {
+    background-color: var(--light-blue);
+    padding: 15px;
+    border-radius: 6px;
+}
+
+.normal-vote h3, .anonymous-vote h3 {
+    color: var(--dark-blue);
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 16px;
+}
+
+.normal-vote {
+    border-left: 4px solid var(--beige);
+}
+
+.anonymous-vote {
+    border-left: 4px solid var(--dark-blue);
+}
+
 @media (max-width: 600px) {
     header {
         flex-direction: column;
@@ -143,5 +170,9 @@ li {
 
     .input-group {
         flex-direction: column;
+    }
+
+    .voting-options {
+        gap: 15px;
     }
 }

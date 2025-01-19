@@ -20,28 +20,43 @@
                 <p>Your wallet address: <span id="walletAddress" class="address"></span></p>
             </section>
             <section id="candidateSection" class="card">
-                <h2>Manage Candidates</h2>
-                <div class="input-group">
-                    <input type="text" id="candidateName" placeholder="Enter candidate name" class="larger-text">
-                    <button onclick="addCandidate()">Add Candidate</button>
+                <h2>Candidates</h2>
+                <div id="candidateManagement" style="display: none;">
+                    <div class="input-group">
+                        <input type="text" id="candidateName" placeholder="Enter candidate name" class="larger-text">
+                        <button onclick="addCandidate()">Add Candidate</button>
+                    </div>
                 </div>
                 <h3>Candidate List</h3>
                 <ul id="candidateList"></ul>
             </section>
             <section id="voteSection" class="card">
                 <h2>Cast Vote</h2>
-                <div class="input-group">
-                    <input type="number" id="candidateIndex" placeholder="Candidate index" class="larger-text">
-                    <input type="number" id="numKeys" min="2" placeholder="Number of Keys" class="larger-text">
-                    <input type="number" id="signerIndex" min="0" placeholder="Signer Index" class="larger-text">
-                </div>
-                <button onclick="generateRingSignature()">Generate Ring Signature</button>
-                <div id="signatureDetails" style="display: none;">
-                    <h3>Signature Details</h3>
-                    <p>Candidate index: <span id="messageDisplay"></span></p>
-                    <p>Signature: <span id="signatureDisplay" class="address larger-text"></span></p>
-                    <p>Validity: <span id="validityDisplay"></span></p>
-                    <button onclick="castVote()">Cast Vote</button>
+                <div class="voting-options">
+                    <div class="normal-vote">
+                        <h3>Normal Vote</h3>
+                        <div class="input-group">
+                            <input type="number" id="normalCandidateIndex" placeholder="Candidate index" class="larger-text">
+                            <button onclick="castNormalVote()">Cast Normal Vote</button>
+                        </div>
+                    </div>
+                    
+                    <div class="anonymous-vote">
+                        <h3>Anonymous Vote (Ring Signature)</h3>
+                        <div class="input-group">
+                            <input type="number" id="candidateIndex" placeholder="Candidate index" class="larger-text">
+                            <input type="number" id="numKeys" min="2" placeholder="Number of Keys" class="larger-text">
+                            <input type="number" id="signerIndex" min="0" placeholder="Signer Index" class="larger-text">
+                        </div>
+                        <button onclick="generateRingSignature()">Generate Ring Signature</button>
+                        <div id="signatureDetails" style="display: none;">
+                            <h3>Signature Details</h3>
+                            <p>Candidate index: <span id="messageDisplay"></span></p>
+                            <p>Signature: <span id="signatureDisplay" class="address larger-text"></span></p>
+                            <p>Validity: <span id="validityDisplay"></span></p>
+                            <button onclick="castVote()">Cast Vote</button>
+                        </div>
+                    </div>
                 </div>
             </section>
         </main>
@@ -237,7 +252,7 @@
 		"type": "function"
 	}
 ]; // Your contract ABI here
-        const contractAddress = '0xe5be77ed3548cc46811172f14f9636216dd94808'; // Your deployed contract address here
+        const contractAddress = '0x79fc5c742a6f939749ad8330976a0ce140221993'; // Your deployed contract address here
         let web3;
         let contract;
         let currentSignature;
@@ -259,8 +274,8 @@
                     isOwner = accounts[0].toLowerCase() === owner.toLowerCase();
                     
                     // Show/hide candidate management based on ownership
-                    const candidateSection = document.getElementById('candidateSection');
-                    candidateSection.style.display = isOwner ? 'block' : 'none';
+                    const candidateManagement = document.getElementById('candidateManagement');
+                    candidateManagement.style.display = isOwner ? 'block' : 'none';
                     
                     await updateCandidateList();
                     await updateVotingStatus();
@@ -363,6 +378,27 @@
                 }
             } catch (error) {
                 console.error("Error checking voting status:", error);
+            }
+        }
+
+        async function castNormalVote() {
+            const candidateIndex = parseInt(document.getElementById('normalCandidateIndex').value);
+            if (isNaN(candidateIndex)) {
+                alert("Please enter a valid candidate index.");
+                return;
+            }
+
+            try {
+                const accounts = await web3.eth.getAccounts();
+                // Pass a dummy signature for normal voting
+                const dummySignature = web3.utils.keccak256(accounts[0] + Date.now().toString());
+                await contract.methods.vote(candidateIndex, dummySignature).send({ from: accounts[0] });
+                alert("Vote cast successfully.");
+                await updateCandidateList();
+                await updateVotingStatus();
+            } catch (error) {
+                console.error("Error casting vote:", error);
+                alert("Failed to cast vote. Please check the console for details.");
             }
         }
 
