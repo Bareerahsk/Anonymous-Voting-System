@@ -63,6 +63,11 @@
 		"type": "function"
 	},
 	{
+		"inputs": [],
+		"stateMutability": "nonpayable",
+		"type": "constructor"
+	},
+	{
 		"anonymous": false,
 		"inputs": [
 			{
@@ -188,6 +193,19 @@
 	},
 	{
 		"inputs": [],
+		"name": "owner",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
 		"name": "totalVotes",
 		"outputs": [
 			{
@@ -219,10 +237,11 @@
 		"type": "function"
 	}
 ]; // Your contract ABI here
-        const contractAddress = '0xbc4655e406747f9b571dda88efb1f9882d54891a'; // Your deployed contract address here
+        const contractAddress = '0xe5be77ed3548cc46811172f14f9636216dd94808'; // Your deployed contract address here
         let web3;
         let contract;
         let currentSignature;
+        let isOwner = false;
 
         async function connectMetaMask() {
             if (typeof window.ethereum !== 'undefined') {
@@ -234,6 +253,15 @@
                     document.getElementById('connectButton').textContent = 'Connected';
                     document.getElementById('walletSection').style.display = 'block';
                     contract = new web3.eth.Contract(contractABI, contractAddress);
+                    
+                    // Check if connected account is the owner
+                    const owner = await contract.methods.owner().call();
+                    isOwner = accounts[0].toLowerCase() === owner.toLowerCase();
+                    
+                    // Show/hide candidate management based on ownership
+                    const candidateSection = document.getElementById('candidateSection');
+                    candidateSection.style.display = isOwner ? 'block' : 'none';
+                    
                     await updateCandidateList();
                     await updateVotingStatus();
                 } catch (error) {
@@ -248,6 +276,10 @@
         async function addCandidate() {
             const candidateName = document.getElementById('candidateName').value;
             try {
+                if (!isOwner) {
+                    alert("Only the contract owner can add candidates.");
+                    return;
+                }
                 const accounts = await web3.eth.getAccounts();
                 await contract.methods.addCandidate(candidateName).send({ from: accounts[0] });
                 alert("Candidate added successfully.");

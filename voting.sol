@@ -2,6 +2,8 @@
 pragma solidity ^0.8.0;
 
 contract AnonymousVoting {
+    address public owner;
+
     struct Candidate {
         string name;
         uint256 voteCount;
@@ -15,7 +17,16 @@ contract AnonymousVoting {
     event CandidateAdded(string name);
     event VoteCast(uint256 candidateIndex);
 
-    function addCandidate(string memory _name) public {
+    constructor() {
+        owner = msg.sender;
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner can add candidates");
+        _;
+    }
+
+    function addCandidate(string memory _name) public onlyOwner {
         candidates.push(Candidate(_name, 0));
         emit CandidateAdded(_name);
     }
