@@ -129,6 +129,19 @@
 		"type": "event"
 	},
 	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "candidateIndex",
+				"type": "uint256"
+			}
+		],
+		"name": "VoteCast",
+		"type": "event"
+	},
+	{
 		"inputs": [
 			{
 				"internalType": "uint256",
@@ -141,23 +154,28 @@
 				"type": "bytes32"
 			}
 		],
-		"name": "vote",
+		"name": "voteNormal",
 		"outputs": [],
 		"stateMutability": "nonpayable",
 		"type": "function"
 	},
 	{
-		"anonymous": false,
 		"inputs": [
 			{
-				"indexed": false,
 				"internalType": "uint256",
-				"name": "candidateIndex",
+				"name": "_candidateIndex",
 				"type": "uint256"
+			},
+			{
+				"internalType": "bytes32",
+				"name": "_signature",
+				"type": "bytes32"
 			}
 		],
-		"name": "VoteCast",
-		"type": "event"
+		"name": "voteRing",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
 	},
 	{
 		"inputs": [
@@ -224,11 +242,54 @@
 		"inputs": [
 			{
 				"internalType": "address",
+				"name": "_voter",
+				"type": "address"
+			}
+		],
+		"name": "getVotingStatus",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "normalVote",
+				"type": "bool"
+			},
+			{
+				"internalType": "bool",
+				"name": "ringVote",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
 				"name": "",
 				"type": "address"
 			}
 		],
-		"name": "hasVoted",
+		"name": "hasNormalVoted",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "hasRingVoted",
 		"outputs": [
 			{
 				"internalType": "bool",
@@ -285,7 +346,7 @@
 		"type": "function"
 	}
 ]; // Your contract ABI here
-        const contractAddress = '0x79e345973af00d1e95228aea4fadf06e05023423'; // Your deployed contract address here
+        const contractAddress = '0x15f981c8cc85f28b1d20ec44c8adbe5f114bb45d'; // Your deployed contract address here
         let web3;
         let contract;
         let currentSignature;
@@ -380,6 +441,74 @@
             document.getElementById('ringSignatureTime').textContent = `${signatureTime.toFixed(2)} ms`;
         }
 
+        async function updateVotingStatus() {
+            try {
+                const accounts = await web3.eth.getAccounts();
+                const status = await contract.methods.getVotingStatus(accounts[0]).call();
+                const hasNormalVoted = status[0];
+                const hasRingVoted = status[1];
+                
+                // Update normal voting section
+                const normalVoteSection = document.querySelector('.normal-vote');
+                if (hasNormalVoted) {
+                    normalVoteSection.innerHTML = '<h3>Normal Vote</h3><p>You have already cast your normal vote.</p>';
+                }
+                
+                // Update ring signature voting section
+                const ringVoteSection = document.querySelector('.anonymous-vote');
+                if (hasRingVoted) {
+                    ringVoteSection.innerHTML = '<h3>Anonymous Vote (Ring Signature)</h3><p>You have already cast your ring signature vote.</p>';
+                }
+            } catch (error) {
+                console.error("Error checking voting status:", error);
+            }
+        }
+
+        async function castNormalVote() {
+            const startTime = performance.now();
+            const candidateIndex = parseInt(document.getElementById('normalCandidateIndex').value);
+            if (isNaN(candidateIndex)) {
+                alert("Please enter a valid candidate index.");
+                return;
+            }
+
+            try {
+                const accounts = await web3.eth.getAccounts();
+                const dummySignature = web3.utils.keccak256(accounts[0] + Date.now().toString());
+                
+                const execTime = performance.now() - startTime;
+                document.getElementById('normalExecTime').textContent = `${execTime.toFixed(2)} ms`;
+                
+                const txStartTime = performance.now();
+                const tx = await contract.methods.voteNormal(candidateIndex, dummySignature)
+                    .send({ from: accounts[0] });
+                
+                // Calculate and display metrics
+                const miningTime = performance.now() - txStartTime;
+                document.getElementById('normalMiningTime').textContent = `${miningTime.toFixed(2)} ms`;
+                
+                // Get transaction details
+                const receipt = await web3.eth.getTransactionReceipt(tx.transactionHash);
+                const block = await web3.eth.getBlock(receipt.blockNumber);
+                const blockTime = (block.timestamp * 1000) - startTime;
+                
+                document.getElementById('normalBlockTime').textContent = `${blockTime.toFixed(2)} ms`;
+                document.getElementById('normalGasUsed').textContent = receipt.gasUsed;
+                
+                // Calculate transaction cost in ETH
+                const gasPrice = await web3.eth.getGasPrice();
+                const txCost = web3.utils.fromWei((receipt.gasUsed * gasPrice).toString(), 'ether');
+                document.getElementById('normalTxCost').textContent = txCost;
+                
+                alert("Normal vote cast successfully.");
+                await updateCandidateList();
+                await updateVotingStatus();
+            } catch (error) {
+                console.error("Error casting vote:", error);
+                alert("Failed to cast vote. Please check the console for details.");
+            }
+        }
+
         async function castVote() {
             const startTime = performance.now();
             if (!currentSignature) {
@@ -396,12 +525,11 @@
             try {
                 const accounts = await web3.eth.getAccounts();
                 
-                // Record execution time before sending transaction
                 const execTime = performance.now() - startTime;
                 document.getElementById('ringExecTime').textContent = `${execTime.toFixed(2)} ms`;
                 
                 const txStartTime = performance.now();
-                const tx = await contract.methods.vote(candidateIndex, web3.utils.keccak256(currentSignature))
+                const tx = await contract.methods.voteRing(candidateIndex, web3.utils.keccak256(currentSignature))
                     .send({ from: accounts[0] });
                 
                 // Calculate and display metrics
@@ -421,67 +549,7 @@
                 const txCost = web3.utils.fromWei((receipt.gasUsed * gasPrice).toString(), 'ether');
                 document.getElementById('ringTxCost').textContent = txCost;
                 
-                alert("Vote cast successfully.");
-                await updateCandidateList();
-                await updateVotingStatus();
-            } catch (error) {
-                console.error("Error casting vote:", error);
-                alert("Failed to cast vote. Please check the console for details.");
-            }
-        }
-
-        async function updateVotingStatus() {
-            try {
-                const accounts = await web3.eth.getAccounts();
-                const hasVoted = await contract.methods.hasVoted(accounts[0]).call();
-                
-                // Disable voting interface if user has already voted
-                const voteSection = document.getElementById('voteSection');
-                if (hasVoted) {
-                    voteSection.innerHTML = '<h2>Cast Vote</h2><p>You have already voted in this election.</p>';
-                }
-            } catch (error) {
-                console.error("Error checking voting status:", error);
-            }
-        }
-
-        async function castNormalVote() {
-            const startTime = performance.now();
-            const candidateIndex = parseInt(document.getElementById('normalCandidateIndex').value);
-            if (isNaN(candidateIndex)) {
-                alert("Please enter a valid candidate index.");
-                return;
-            }
-
-            try {
-                const accounts = await web3.eth.getAccounts();
-                const dummySignature = web3.utils.keccak256(accounts[0] + Date.now().toString());
-                
-                // Record execution time before sending transaction
-                const execTime = performance.now() - startTime;
-                document.getElementById('normalExecTime').textContent = `${execTime.toFixed(2)} ms`;
-                
-                const txStartTime = performance.now();
-                const tx = await contract.methods.vote(candidateIndex, dummySignature).send({ from: accounts[0] });
-                
-                // Calculate and display metrics
-                const miningTime = performance.now() - txStartTime;
-                document.getElementById('normalMiningTime').textContent = `${miningTime.toFixed(2)} ms`;
-                
-                // Get transaction details
-                const receipt = await web3.eth.getTransactionReceipt(tx.transactionHash);
-                const block = await web3.eth.getBlock(receipt.blockNumber);
-                const blockTime = (block.timestamp * 1000) - startTime;
-                
-                document.getElementById('normalBlockTime').textContent = `${blockTime.toFixed(2)} ms`;
-                document.getElementById('normalGasUsed').textContent = receipt.gasUsed;
-                
-                // Calculate transaction cost in ETH
-                const gasPrice = await web3.eth.getGasPrice();
-                const txCost = web3.utils.fromWei((receipt.gasUsed * gasPrice).toString(), 'ether');
-                document.getElementById('normalTxCost').textContent = txCost;
-                
-                alert("Vote cast successfully.");
+                alert("Ring signature vote cast successfully.");
                 await updateCandidateList();
                 await updateVotingStatus();
             } catch (error) {

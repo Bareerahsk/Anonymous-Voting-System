@@ -11,7 +11,8 @@ contract AnonymousVoting {
 
     Candidate[] public candidates;
     mapping(bytes32 => bool) public usedSignatures;
-    mapping(address => bool) public hasVoted;
+    mapping(address => bool) public hasNormalVoted;
+    mapping(address => bool) public hasRingVoted;
     uint256 public totalVotes;
 
     event CandidateAdded(string name);
@@ -31,13 +32,26 @@ contract AnonymousVoting {
         emit CandidateAdded(_name);
     }
 
-    function vote(uint256 _candidateIndex, bytes32 _signature) public {
+    function voteNormal(uint256 _candidateIndex, bytes32 _signature) public {
         require(_candidateIndex < candidates.length, "Invalid candidate index");
+        require(!hasNormalVoted[msg.sender], "You have already cast a normal vote");
         require(!usedSignatures[_signature], "Signature already used");
-        require(!hasVoted[msg.sender], "You have already voted");
 
         usedSignatures[_signature] = true;
-        hasVoted[msg.sender] = true;
+        hasNormalVoted[msg.sender] = true;
+        candidates[_candidateIndex].voteCount++;
+        totalVotes++;
+
+        emit VoteCast(_candidateIndex);
+    }
+
+    function voteRing(uint256 _candidateIndex, bytes32 _signature) public {
+        require(_candidateIndex < candidates.length, "Invalid candidate index");
+        require(!hasRingVoted[msg.sender], "You have already cast a ring signature vote");
+        require(!usedSignatures[_signature], "Signature already used");
+
+        usedSignatures[_signature] = true;
+        hasRingVoted[msg.sender] = true;
         candidates[_candidateIndex].voteCount++;
         totalVotes++;
 
@@ -51,5 +65,9 @@ contract AnonymousVoting {
     function getCandidate(uint256 _index) public view returns (string memory, uint256) {
         require(_index < candidates.length, "Invalid candidate index");
         return (candidates[_index].name, candidates[_index].voteCount);
+    }
+
+    function getVotingStatus(address _voter) public view returns (bool normalVote, bool ringVote) {
+        return (hasNormalVoted[_voter], hasRingVoted[_voter]);
     }
 }
